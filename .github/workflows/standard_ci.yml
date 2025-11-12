@@ -1,0 +1,53 @@
+name: Standard CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Pre-build memory usage
+        run: |
+          echo "=== Before build ==="
+          free -h
+          df -h
+          
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Sync dependencies
+        run: |
+          uv sync --all-extras --dev
+
+      - name: Lint with Ruff
+        run: |
+          uv run ruff check .
+
+      - name: Format check with Black
+        run: |
+          uv run black --check .
+
+      - name: Run dry-run of main.py
+        run: |
+          uv run python main.py --dry-run || echo "Dry run failed (non-critical)"
+
+      - name: Post-build memory usage
+        run: |
+          echo "=== After build ==="
+          free -h
+          df -h
+          docker system df
