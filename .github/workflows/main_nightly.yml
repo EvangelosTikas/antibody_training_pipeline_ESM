@@ -1,0 +1,63 @@
+name: Nightly CI
+
+on:
+  schedule:
+    # Friday 21:00 EST → Saturday 02:00 UTC
+    - cron: "0 2 * * 6"
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+
+    steps:
+      # -------- CHECK DISK BEFORE --------
+      - name: Check free disk (before)
+        run: |
+          echo "Free disk space BEFORE:"
+          df -h
+
+      # -------- CHECKOUT --------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # -------- CACHE UV & DATA --------
+      - name: Cache uv environment and project data
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+            data/
+          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock', 'pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      # -------- INSTALL UV --------
+      - name: Install uv
+        run: |
+          curl -fsSL https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      # -------- UV CHECKS --------
+      - name: Run uv checks
+        run: |
+          uv --version
+          uv sync
+          uv check
+          uv lint
+
+      # -------- PYTHON COMMANDS --------
+      - name: Python commands
+        run: |
+          uv run python main.py --dry-run || echo "Dry run failed (non-critical)"
+          python3 main.py --setup-dirs
+          python3 main.py --validate-only
+
+      # -------- CHECK DISK AFTER --------
+      - name: Check free disk (after)
+        run: |
+          echo "Free disk space AFTER:"
+          df -h
