@@ -27,7 +27,12 @@ jobs:
           python-version: "3.11"
 
       - name: Install uv
-        run: pip install uv
+        run: curl -fsSL https://astral.sh/uv/install.sh | sh
+
+      - name: Ensure uv uses Python 3.11
+        run: |
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          uv venv --python 3.11
 
       - name: Sync dependencies
         run: |
