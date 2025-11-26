@@ -7,57 +7,149 @@ on:
   workflow_dispatch:
 
 jobs:
-  nightly:
+  setup:
+    name: Setup & Environment Preparation
     runs-on: ubuntu-latest
 
-    steps:
-      # -------- CHECK DISK BEFORE --------
-      - name: Check free disk (before)
-        run: |
-          echo "Free disk space BEFORE:"
-          df -h
+    outputs:
+      cache-hit: ${{ steps.cache.outputs.cache-hit }}
 
-      # -------- CHECKOUT --------
+    steps:
+      # ---- SYSTEM METRICS BEFORE ----
+      - name: Disk/memory/CPU metrics (before)
+        run: |
+          echo "===== DISK SPACE (BEFORE) ====="
+          df -h
+          echo "===== MEMORY INFO (BEFORE) ====="
+          free -h
+          echo "===== CPU LOAD (BEFORE) ====="
+          uptime
+
+      # ---- CHECKOUT REPO ----
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      # -------- CACHE UV & DATA --------
-      - name: Cache uv environment and project data
+      # ---- RESTORE CACHE ----
+      - name: Cache uv + venv + data
+        id: cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/uv
             .venv
             data/
-          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock', 'pyproject.toml') }}
+          key: >
+            ${{ runner.os }}-uv-${{ hashFiles('uv.lock', 'pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-uv-
 
-      # -------- INSTALL UV --------
+      # ---- INSTALL UV ----
       - name: Install uv
         run: |
           curl -fsSL https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      # -------- UV CHECKS --------
-      - name: Run uv checks
+      # ---- SYNC PYTHON ENV ----
+      - name: Sync Python environment with uv
+        run: uv sync
+
+      # ---- PACKAGE ENVIRONMENT FOR DOWNSTREAM JOBS ----
+      - name: Upload environment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uv-env
+          path: |
+            .venv
+            ~/.cache/uv
+
+      # ---- SYSTEM METRICS AFTER ----
+      - name: Disk/memory/CPU metrics (after)
         run: |
-          uv --version
-          uv sync
+          echo "===== DISK SPACE (AFTER) ====="
+          df -h
+          echo "===== MEMORY INFO (AFTER) ====="
+          free -h
+          echo "===== CPU LOAD (AFTER) ====="
+          uptime
+
+
+  lint:
+    name: Linting & Static Analysis
+    runs-on: ubuntu-latest
+    needs: setup
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---- RESTORE ENV ARTIFACT ----
+      - name: Download env
+        uses: actions/download-artifact@v4
+        with:
+          name: uv-env
+
+      # ---- LINTING ----
+      - name: Run uv lint + checks
+        run: |
           uv check
           uv lint
 
-      # -------- PYTHON COMMANDS --------
-      - name: Python commands
+
+  validate:
+    name: Validation Tasks
+    runs-on: ubuntu-latest
+    needs: setup
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---- RESTORE ENV ----
+      - name: Download env
+        uses: actions/download-artifact@v4
+        with:
+          name: uv-env
+
+      # ---- VALIDATION COMMANDS ----
+      - name: Execute validation commands
         run: |
           uv run python main.py --dry-run || echo "Dry run failed (non-critical)"
           python3 main.py --setup-dirs
           python3 main.py --validate-only
 
-      # -------- CHECK DISK AFTER --------
-      - name: Check free disk (after)
+      # ---- MEMORY + CPU MONITORING ----
+      - name: System resource report
         run: |
-          echo "Free disk space AFTER:"
-          df -h
+          echo "===== MEMORY USAGE ====="
+          free -h
+          echo "===== TOP PROCESSES (sorted by memory) ====="
+          ps aux --sort=-%mem | head -n 10
+          echo "===== CPU LOAD ====="
+          uptime
+
+
+  run:
+    name: Full Production Run
+    runs-on: ubuntu-latest
+    needs: setup
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---- RESTORE ENV ----
+      - name: Download env
+        uses: actions/download-artifact@v4
+        with:
+          name: uv-env
+
+      # ---- FULL RUN ----
+      - name: Execute main program (full run)
+        run: python3 main.py
+
+      # ---- RESOURCE USAGE ----
+      - name: System resource report
+        run: |
+          echo "===== MEMORY USAGE ====="
+          free -h
+          echo "===== TOP CPU PROCESSES ====="
+          ps aux --sort=-%cpu | head -n 10
+          echo "===== CPU LOAD ====="
+          uptime
