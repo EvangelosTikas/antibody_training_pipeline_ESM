@@ -1,30 +1,35 @@
-name: Standard CI
+name: Merge CI
 
 on:
   push:
-    branches: [main]
+    branches: ["main"]
   pull_request:
-    branches: [main]
-
+    branches: ["main"]
 
 jobs:
-  build:
+
+  #######################################################################
+  # 1) LINT JOB (set up the environment)
+  #######################################################################
+  lint:
+    name: Lint & Install
     runs-on: ubuntu-latest
+
+    outputs:
+      uv-artifact-name: uv-env
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
-      - name: Pre-build memory usage
-        run: |
-          echo "=== Before build ==="
-          free -h
-          df -h
-          
-      - name: Set up Python
+
+      - name: System resources (before)
+        run: free -h && df -h
+
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install uv
         run: curl -fsSL https://astral.sh/uv/install.sh | sh
@@ -34,25 +39,61 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           uv venv --python 3.11
 
-      - name: Sync dependencies
-        run: |
-          uv sync --all-extras --dev
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
 
-      - name: Lint with Ruff
-        run: |
-          uv run ruff check .
+      - name: Sync environment
+        run: uv sync --all-extras --dev
 
-      - name: Format check with Black
-        run: |
-          uv run black --check .
+      - name: Run Ruff Lint
+        run: uv run ruff check .
 
-      - name: Run dry-run of main.py
-        run: |
-          uv run python main.py --dry-run || echo "Dry run failed (non-critical)"
+      - name: Black Format Check
+        run: uv run black --check .
 
-      - name: Post-build memory usage
-        run: |
-          echo "=== After build ==="
-          free -h
-          df -h
-          docker system df
+      - name: Upload uv environment for downstream jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: uv-env
+          path: |
+            .venv
+            ~/.cache/uv
+
+      - name: System resources (after)
+        run: free -h && df -h
+
+
+  #######################################################################
+  # 2) DRY-RUN JOB (reuse environment)
+  #######################################################################
+  dry-run:
+    name: Dry-Run main.py
+    needs: lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download uv environment artifact from lint job
+        uses: actions/download-artifact@v4
+        with:
+          name: uv-env
+          path: .
+
+      - name: Add uv/bin to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: System resources pre-run
+        run: free -h && df -h
+
+      - name: Dry-run main.py
+        run: uv run python main.py --dry-run || echo "Dry run failed (non-critical)"
+
+      - name: System resources post-run
+        run: free -h && df -h
