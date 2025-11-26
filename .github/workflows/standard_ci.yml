@@ -38,7 +38,7 @@ jobs:
         run: |
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           uv venv --python 3.11
-	      uv run python --version
+          uv run python --version
 
       - name: Cache uv
         uses: actions/cache@v4
