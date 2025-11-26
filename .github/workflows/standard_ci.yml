@@ -48,7 +48,7 @@ jobs:
             uv-${{ runner.os }}-
 
       - name: Sync environment
-        run: uv sync --all-extras --dev
+        run: uv sync
 
       - name: Run Ruff Lint
         run: uv run ruff check .
