@@ -32,7 +32,8 @@ jobs:
           cache: "pip"
 
       - name: Install uv
-        run: curl -fsSL https://astral.sh/uv/install.sh | sh
+        run: |
+          curl -fsSL https://astral.sh/uv/install.sh | sh
 
       - name: Ensure uv uses Python 3.11
         run: |
@@ -49,7 +50,10 @@ jobs:
             uv-${{ runner.os }}-
 
       - name: Sync environment
-        run: uv sync --all-extras --dev
+        run: |
+          uv add --dev ruff || echo "uv add --dev ruff failed or ruff already present, continuing"
+          echo "Syncing uv environment (will install ruff into the venv)..."
+          uv sync --all-extras --dev
 
       - name: Run Ruff Lint
         run: uv run ruff check .
