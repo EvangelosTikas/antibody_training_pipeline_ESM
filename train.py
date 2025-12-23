@@ -7,10 +7,8 @@ import os
 import logging
 import pickle
 import yaml
-import pandas as pd
 import numpy as np
-from pathlib import Path
-from typing import Dict, Tuple, Optional, List, Any
+from typing import Dict, List, Any
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 from sklearn.metrics import (
     accuracy_score,
@@ -19,7 +17,6 @@ from sklearn.metrics import (
     f1_score,
     roc_auc_score,
     classification_report,
-    confusion_matrix,
 )
 
 from model import ESMEmbeddingExtractor

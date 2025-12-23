@@ -1,4 +1,4 @@
-f"""
+"""
 ESM Model Module
 Contains the ESM-1V embedding extractor for protein sequences.
 """

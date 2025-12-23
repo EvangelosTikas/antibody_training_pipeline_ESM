@@ -23,7 +23,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Dict, List, Tuple, Any
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -40,9 +40,7 @@ from sklearn.metrics import (
 )
 
 # Local imports
-from model import ESMEmbeddingExtractor
 from classifier import BinaryClassifier
-from data import preprocess_raw_data, load_preprocessed_data
 
 # Configure matplotlib for better plots
 plt.style.use("seaborn-v0_8" if "seaborn-v0_8" in plt.style.available else "default")
