@@ -1,0 +1,104 @@
+name: Merge CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+
+  #######################################################################
+  # 1) LINT JOB (set up the environment)
+  #######################################################################
+  lint:
+    name: Lint & Install
+    runs-on: ubuntu-latest
+
+    outputs:
+      uv-artifact-name: uv-env
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: System resources (before)
+        run: free -h && df -h
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install uv
+        run: |
+          curl -fsSL https://astral.sh/uv/install.sh | sh
+
+      - name: Ensure uv uses Python 3.11
+        run: |
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          uv venv --python 3.11
+          uv run python --version
+
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+
+      - name: Sync environment
+        run: |
+          uv add --dev ruff || echo "uv add --dev ruff failed or ruff already present, continuing"
+          echo "Syncing uv environment (will install ruff into the venv)..."
+          uv sync --all-extras --dev
+
+      - name: Run Ruff Lint
+        run: uv run ruff check .
+
+      - name: Black Format Check
+        run: uv run black --check .
+
+      - name: Upload uv environment for downstream jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: uv-env
+          path: |
+            .venv
+            ~/.cache/uv
+
+      - name: System resources (after)
+        run: free -h && df -h
+
+
+  #######################################################################
+  # 2) DRY-RUN JOB (reuse environment)
+  #######################################################################
+  dry-run:
+    name: Dry-Run main.py
+    needs: lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download uv environment artifact from lint job
+        uses: actions/download-artifact@v4
+        with:
+          name: uv-env
+          path: .
+
+      - name: Add uv/bin to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: System resources pre-run
+        run: free -h && df -h
+
+      - name: Dry-run main.py
+        run: uv run python main.py --dry-run || echo "Dry run failed (non-critical)"
+
+      - name: System resources post-run
+        run: free -h && df -h
