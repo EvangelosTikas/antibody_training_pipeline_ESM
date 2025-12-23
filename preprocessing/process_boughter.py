@@ -68,7 +68,7 @@ def process_dataset(
     heavy_annotations = annotate(heavy_seqs, "H", name)
     light_annotations = annotate(light_seqs, "L", name)
 
-    annotations = [h | l for h, l in zip(heavy_annotations, light_annotations)]
+    annotations = [h | i for h, i in zip(heavy_annotations, light_annotations)]
 
     targets = target_path.read_text().splitlines()
     # Some target files have headers

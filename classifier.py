@@ -7,114 +7,123 @@ from model import ESMEmbeddingExtractor
 
 logger = logging.getLogger(__name__)
 
+
 class BinaryClassifier:
     """Binary classifier for protein sequences using ESM-1V embeddings"""
-    
+
     def __init__(self, params: Dict):
         """
         Initialize the binary classifier
-        
+
         Args:
             params: Dictionary containing the parameters for the classifier
         """
-        random_state = params['random_state']
-        batch_size = params.get('batch_size', 32)  # Default to 32 if not provided
-        
-        self.embedding_extractor = ESMEmbeddingExtractor(params['model_name'], params['device'], batch_size)
-        self.scaler = StandardScaler()
-        
-        # Get class_weight parameter if provided, otherwise use None (default)
-        class_weight = params.get('class_weight', None)
-        
-        self.classifier = LogisticRegression(
-            random_state=params['random_state'], 
-            max_iter=params['max_iter'],
-            class_weight="balanced"
+        random_state = params["random_state"]
+        batch_size = params.get("batch_size", 32)  # Default to 32 if not provided
+
+        self.embedding_extractor = ESMEmbeddingExtractor(
+            params["model_name"], params["device"], batch_size
         )
-        print(f"Classifier initialized with random state: {random_state}, class_weight: {class_weight}")
+        self.scaler = StandardScaler()
+
+        # Get class_weight parameter if provided, otherwise use None (default)
+        class_weight = params.get("class_weight", None)
+
+        self.classifier = LogisticRegression(
+            random_state=params["random_state"],
+            max_iter=params["max_iter"],
+            class_weight="balanced",
+        )
+        print(
+            f"Classifier initialized with random state: {random_state}, class_weight: {class_weight}"
+        )
         self.random_state = random_state
         self.is_fitted = False
         self.device = self.embedding_extractor.device
-        self.model_name = params['model_name']  # Store for recreation
-        self.max_iter = params['max_iter']
+        self.model_name = params["model_name"]  # Store for recreation
+        self.max_iter = params["max_iter"]
         self.class_weight = class_weight
         self.batch_size = batch_size  # Store for recreation
-    
+
     def fit(self, X: np.ndarray, y: np.ndarray):
         """
         Fit the classifier to the data
-        
+
         Args:
             X: Array of ESM-1V embeddings
             y: Array of labels
         """
         # Scale the embeddings
         X_scaled = self.scaler.fit_transform(X)
-        
+
         # Fit the classifier
         self.classifier.fit(X_scaled, y)
         self.is_fitted = True
         logger.info(f"Classifier fitted on {len(X)} samples")
-        
+
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
         Predict the labels for the data
-        
+
         Args:
             X: Array of ESM-1V embeddings
-            
+
         Returns:
             Predicted labels
         """
         if not self.is_fitted:
             raise ValueError("Classifier must be fitted before making predictions")
-            
+
         X_scaled = self.scaler.transform(X)
         return self.classifier.predict(X_scaled)
-    
+
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """
         Predict class probabilities for the data
-        
+
         Args:
             X: Array of ESM-1V embeddings
-            
+
         Returns:
             Predicted probabilities
         """
         if not self.is_fitted:
             raise ValueError("Classifier must be fitted before making predictions")
-            
+
         X_scaled = self.scaler.transform(X)
         return self.classifier.predict_proba(X_scaled)
-    
+
     def score(self, X: np.ndarray, y: np.ndarray) -> float:
         """
         Return the mean accuracy on the given test data and labels
-        
+
         Args:
             X: Array of ESM-1V embeddings
             y: Array of true labels
-            
+
         Returns:
             Mean accuracy
         """
         if not self.is_fitted:
             raise ValueError("Classifier must be fitted before scoring")
-            
+
         X_scaled = self.scaler.transform(X)
         return self.classifier.score(X_scaled, y)
-    
+
     def __getstate__(self):
         """Custom pickle method - don't save the ESM model"""
         state = self.__dict__.copy()
         # Remove the embedding_extractor (it will be recreated on load)
-        state.pop('embedding_extractor', None)
+        state.pop("embedding_extractor", None)
         return state
-    
+
     def __setstate__(self, state):
         """Custom unpickle method - recreate ESM model with correct config"""
         self.__dict__.update(state)
         # Recreate embedding extractor with fixed configuration
-        batch_size = getattr(self, 'batch_size', 32)  # Default to 32 if not stored (backwards compatibility)
-        self.embedding_extractor = ESMEmbeddingExtractor(self.model_name, self.device, batch_size)
+        batch_size = getattr(
+            self, "batch_size", 32
+        )  # Default to 32 if not stored (backwards compatibility)
+        self.embedding_extractor = ESMEmbeddingExtractor(
+            self.model_name, self.device, batch_size
+        )
